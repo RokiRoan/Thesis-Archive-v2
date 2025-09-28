@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Documents</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{% url 'upload_document' %}">📄 DocuMind AI</a>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'upload_document' %}">Upload Document</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="{% url 'search' %}">Search Documents</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <h1>Search Documents</h1>
+        
+        <form class="d-flex mt-4 mb-4" method="get" action="{% url 'search' %}">
+            <input class="form-control me-2 form-control-lg" type="text" name="q" placeholder="Search by keyword, title, or tag..." value="{{ query }}">
+            <button class="btn btn-success btn-lg" type="submit">Search</button>
+        </form>
+
+        {% if query %}
+            <hr>
+            <h2>Results for "{{ query }}"</h2>
+
+            {% for document in results %}
+                <div class="card mb-3">
+                    <div class="card-body">
+                        <h5 class="card-title">{{ document.title }}</h5>
+                        <p class="card-text">{{ document.summary }}</p>
+                        <p class="card-text"><small class="text-muted">Uploaded on: {{ document.upload_date|date:"F d, Y" }}</small></p>
+                        
+                        <a href="{% url 'document_detail' pk=document.pk %}" class="btn btn-secondary btn-sm">
+                            View the Whole Book 📖
+                        </a>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="alert alert-warning" role="alert">
+                    No documents found matching your query.
+                </div>
+            {% endfor %}
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
