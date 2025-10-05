@@ -1,10 +1,9 @@
-# uploader/views.py
-
 import json
 import os
 from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
 from django.db.models import Q
+from django.contrib import messages
 from .models import Document, Tag
 
 # OCR and PDF Processing Imports
@@ -18,14 +17,24 @@ import google.generativeai as genai
 if hasattr(settings, 'TESSERACT_CMD'):
     pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
 
-# --- Helper Function for AI Analysis ---
+# --- Home Page View ---
+def home_view(request):
+    document_count = Document.objects.count()
+    tag_count = Tag.objects.count()
+    context = {
+        'document_count': document_count,
+        'tag_count': tag_count,
+    }
+    return render(request, 'uploader/home.html', context)
+
+# --- AI Analysis Helper Function ---
 def analyze_text_with_gemini(text):
     """
     Analyzes text with Gemini to extract title, summary, and keywords.
     """
     try:
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-pro-latest')
+        model = genai.GenerativeModel('gemini-2.5-pro')
         
         prompt = f"""
         Analyze the following document text and return ONLY a valid JSON object with three keys:
@@ -48,7 +57,7 @@ def analyze_text_with_gemini(text):
         print(f"An error occurred during Gemini analysis: {e}")
         return None
 
-# --- Main View for Document Upload ---
+# --- View for the Dedicated Upload Page ---
 def upload_document(request):
     if request.method == 'POST':
         uploaded_file = request.FILES.get('document')
@@ -64,17 +73,16 @@ def upload_document(request):
                 if file_extension == '.pdf':
                     with pdfplumber.open(file_path) as pdf:
                         for page in pdf.pages:
-                            extracted_text += page.extract_text() + "\n"
+                            if page.extract_text():
+                                extracted_text += page.extract_text() + "\n"
                     
                     if len(extracted_text.strip()) < 100:
-                        print("pdfplumber found little text. Falling back to OCR...")
                         extracted_text = ""
                         images = convert_from_path(file_path)
                         for img in images:
                             extracted_text += pytesseract.image_to_string(img) + "\n"
 
                 elif file_extension in ['.png', '.jpg', '.jpeg', '.tiff']:
-                    print("Processing image file with OCR...")
                     extracted_text = pytesseract.image_to_string(Image.open(file_path))
                 
                 document.extracted_text = extracted_text
@@ -94,13 +102,10 @@ def upload_document(request):
                         document.tags.add(tag)
             
             document.save()
-            return redirect('upload_success')
+            messages.success(request, f"Successfully uploaded and analyzed '{document.title}'.")
+            return redirect('upload_document')
     
-    return render(request, 'uploader/upload.html')
-
-# --- View for the Success Page ---
-def upload_success(request):
-    return render(request, 'uploader/success.html')
+    return render(request, 'uploader/upload_page.html')
 
 # --- View for the Search Page ---
 def search_documents(request):
@@ -115,16 +120,28 @@ def search_documents(request):
             Q(tags__name__icontains=query)
         ).distinct()
 
-    context = {
-        'query': query,
-        'results': results
-    }
+    context = {'query': query, 'results': results}
     return render(request, 'uploader/search.html', context)
 
 # --- View for the Document Detail Page ---
 def document_detail(request, pk):
     document = get_object_or_404(Document, pk=pk)
-    context = {
-        'document': document
-    }
+    context = {'document': document}
     return render(request, 'uploader/document_detail.html', context)
+
+# --- Views for Categories ---
+def category_list(request):
+    tags = Tag.objects.all().order_by('name')
+    context = {
+        'tags': tags
+    }
+    return render(request, 'uploader/categories_list.html', context)
+
+def category_detail(request, tag_name):
+    tag = get_object_or_404(Tag, name=tag_name)
+    documents = Document.objects.filter(tags=tag)
+    context = {
+        'tag': tag,
+        'documents': documents,
+    }
+    return render(request, 'uploader/category_detail.html', context)
